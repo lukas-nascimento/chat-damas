@@ -61,7 +61,15 @@ export default function ChatPage() {
     e.preventDefault();
     if (!username.trim()) return;
 
-    const ws = new WebSocket("ws://localhost:8080");
+    // 🌐 DETECTA O AMBIENTE E USA A URL CORRETA
+    const isProduction = process.env.NODE_ENV === 'production';
+    const wsUrl = isProduction 
+      ? 'wss://chat-damas.onrender.com'  // Produção
+      : 'ws://localhost:10000';           // Desenvolvimento
+
+    console.log('🔌 Conectando ao WebSocket:', wsUrl);
+
+    const ws = new WebSocket(wsUrl);
     websocketRef.current = ws;
 
     ws.onopen = () => {
