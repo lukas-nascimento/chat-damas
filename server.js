@@ -26,6 +26,9 @@ const MAX_VIOLATIONS_PER_USER = 5;
 const MAX_MESSAGE_LENGTH = 1000;
 const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
+// Cores disponíveis para usuários
+const USER_COLORS = ['crimson', 'gold', 'cadetblue', 'coral', 'teal', 'purple', 'deeppink', 'lime', 'orange', 'cyan'];
+
 // ==========================================
 // SISTEMA DE SEGURANÇA
 // ==========================================
@@ -185,8 +188,11 @@ function banUser(ws, userId, userName, reason) {
 }
 
 function validateMessage(message, ws, user) {
+  console.log(`🔍 Validando mensagem de ${user.name}: "${message}"`);
+
   if (bannedUsers.has(user.id)) {
     const banInfo = bannedUsers.get(user.id);
+    console.log(`❌ Usuário ${user.name} já está banido`);
     ws.send(JSON.stringify({
       type: 'message_blocked',
       data: { reason: `Você está banido: ${banInfo.reason}` }
@@ -196,6 +202,7 @@ function validateMessage(message, ws, user) {
   }
 
   if (message.length > MAX_MESSAGE_LENGTH) {
+    console.log(`❌ Mensagem muito longa de ${user.name}`);
     ws.send(JSON.stringify({
       type: 'message_blocked',
       data: { reason: 'Mensagem muito longa' }
@@ -204,7 +211,7 @@ function validateMessage(message, ws, user) {
   }
 
   if (containsLink(message)) {
-    console.log(`⚠️ LINK DETECTADO de ${user.name}`);
+    console.log(`⚠️ LINK DETECTADO de ${user.name}: "${message}"`);
     
     if (!userViolations.has(user.id)) {
       userViolations.set(user.id, []);
@@ -226,7 +233,7 @@ function validateMessage(message, ws, user) {
 
   const bannedWord = findBannedWord(message);
   if (bannedWord) {
-    console.log(`⚠️ PALAVRA PROIBIDA de ${user.name}: "${bannedWord}"`);
+    console.log(`⚠️ PALAVRA PROIBIDA de ${user.name}: "${bannedWord}" na mensagem: "${message}"`);
     
     if (!userViolations.has(user.id)) {
       userViolations.set(user.id, []);
@@ -247,25 +254,35 @@ function validateMessage(message, ws, user) {
     return false;
   }
 
+  console.log(`✅ Mensagem válida de ${user.name}`);
   return true;
 }
 
 function broadcastEvent(type, data) {
   const message = JSON.stringify({ type, data });
+  let successCount = 0;
+  let errorCount = 0;
+
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
       try {
         client.send(message);
+        successCount++;
       } catch (err) {
-        console.error('Erro ao enviar:', err.message);
+        errorCount++;
+        console.error('❌ Erro ao enviar broadcast:', err.message);
       }
     }
   });
+
+  console.log(`📡 Broadcast ${type}: ${successCount} enviados, ${errorCount} erros`);
 }
 
 function updateOnlineCount() {
+  // Limpar conexões fechadas
   for (const [ws, user] of users.entries()) {
     if (ws.readyState !== WebSocket.OPEN) {
+      console.log(`🧹 Removendo usuário desconectado: ${user.name}`);
       users.delete(ws);
     }
   }
@@ -274,6 +291,8 @@ function updateOnlineCount() {
     id: u.id,
     name: u.name
   }));
+
+  console.log(`👥 Usuários online: ${usersList.length}`);
 
   broadcastEvent('online_count', {
     count: usersList.length,
@@ -350,10 +369,14 @@ app.prepare().then(() => {
   wss.on('connection', (ws) => {
     const userId = userIdCounter++;
     const userName = `Usuário ${userId}`;
+    const userColor = USER_COLORS[userId % USER_COLORS.length];
     ws.isAlive = true;
+
+    console.log(`🔌 Nova conexão: ${userName} (ID: ${userId}, Cor: ${userColor})`);
 
     if (bannedUsers.has(userId)) {
       const banInfo = bannedUsers.get(userId);
+      console.log(`❌ Tentativa de conexão de usuário banido: ${userId}`);
       ws.send(JSON.stringify({
         type: 'user_banned',
         data: banInfo
@@ -362,33 +385,59 @@ app.prepare().then(() => {
       return;
     }
 
-    users.set(ws, { id: userId, name: userName });
+    // Armazenar usuário no Map
+    users.set(ws, { id: userId, name: userName, color: userColor });
 
+    // CORREÇÃO: Enviar dados no formato correto
     ws.send(JSON.stringify({
       type: 'user_id',
-      data: { userId, userName }
+      data: { 
+        id: userId, 
+        name: userName,
+        color: userColor
+      }
     }));
+
+    console.log(`✅ Usuário registrado: ${userName}`);
 
     updateOnlineCount();
 
-    ws.on('pong', () => ws.isAlive = true);
+    ws.on('pong', () => {
+      ws.isAlive = true;
+      console.log(`💓 Pong recebido de ${users.get(ws)?.name}`);
+    });
 
     ws.on('message', (msg) => {
       try {
         const message = JSON.parse(msg);
         const user = users.get(ws);
         
-        if (!user) return;
+        console.log(`📥 Mensagem recebida - Tipo: ${message.type}, User: ${user?.name || 'DESCONHECIDO'}`);
+
+        if (!user) {
+          console.error('❌ ERRO: Usuário não encontrado no Map!');
+          console.error('❌ WebSocket registrado?', users.has(ws));
+          console.error('❌ Total de usuários:', users.size);
+          return;
+        }
 
         if (message.type === 'set_name') {
-          user.name = message.data || user.name;
+          const newName = message.data || user.name;
+          console.log(`✏️ Alterando nome: ${user.name} → ${newName}`);
+          user.name = newName;
           users.set(ws, user);
           updateOnlineCount();
         }
 
         else if (message.type === 'message') {
-          if (!validateMessage(message.data, ws, user)) return;
+          console.log(`💬 Processando mensagem de texto: "${message.data}"`);
+          
+          if (!validateMessage(message.data, ws, user)) {
+            console.log('❌ Mensagem bloqueada pela validação');
+            return;
+          }
 
+          console.log(`📤 Broadcasting mensagem de ${user.name}`);
           broadcastEvent('message', {
             userId: user.id,
             userName: user.name,
@@ -398,6 +447,7 @@ app.prepare().then(() => {
         }
 
         else if (message.type === 'audio_message') {
+          console.log(`🎤 Áudio recebido de ${user.name}`);
           broadcastEvent('audio_message', {
             userId: user.id,
             userName: user.name,
@@ -407,6 +457,7 @@ app.prepare().then(() => {
         }
 
         else if (message.type === 'image_message') {
+          console.log(`🖼️ Imagem recebida de ${user.name}`);
           broadcastEvent('image_message', {
             userId: user.id,
             userName: user.name,
@@ -417,6 +468,7 @@ app.prepare().then(() => {
         }
 
         else if (message.type === 'video_message') {
+          console.log(`🎥 Tentativa de envio de vídeo por ${user.name}`);
           ws.send(JSON.stringify({
             type: 'message_blocked',
             data: { reason: 'Vídeos temporariamente desabilitados para economia de memória' }
@@ -424,6 +476,7 @@ app.prepare().then(() => {
         }
 
         else if (message.type === 'sticker_message') {
+          console.log(`😊 Sticker enviado por ${user.name}`);
           broadcastEvent('sticker_message', {
             userId: user.id,
             userName: user.name,
@@ -433,6 +486,7 @@ app.prepare().then(() => {
         }
 
         else if (message.type === 'typing_start' || message.type === 'typing_stop') {
+          console.log(`⌨️ ${user.name} ${message.type === 'typing_start' ? 'começou' : 'parou'} de digitar`);
           broadcastEvent('user_typing', {
             userId: user.id,
             userName: user.name,
@@ -440,32 +494,58 @@ app.prepare().then(() => {
           });
         }
 
+        else {
+          console.log(`⚠️ Tipo de mensagem desconhecido: ${message.type}`);
+        }
+
       } catch (err) {
-        console.error('❌ Erro:', err.message);
+        console.error('❌ Erro ao processar mensagem:', err.message);
+        console.error('❌ Stack:', err.stack);
       }
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code, reason) => {
       const user = users.get(ws);
+      console.log(`🔌 Conexão fechada - Code: ${code}, Reason: ${reason || 'Sem razão'}`);
+      
       if (user) {
+        console.log(`👋 Usuário desconectado: ${user.name} (ID: ${user.id})`);
         users.delete(ws);
         updateOnlineCount();
+      } else {
+        console.log('⚠️ Conexão fechada mas usuário não estava no Map');
       }
     });
 
-    ws.on('error', (err) => console.error('❌ Erro WebSocket:', err.message));
+    ws.on('error', (err) => {
+      const user = users.get(ws);
+      console.error('❌ Erro WebSocket:', err.message);
+      if (user) {
+        console.error(`❌ Erro do usuário: ${user.name} (ID: ${user.id})`);
+      }
+    });
   });
 
-  // Heartbeat
+  // Heartbeat para detectar conexões mortas
   setInterval(() => {
+    console.log('💓 Executando heartbeat check...');
+    let terminated = 0;
+    
     wss.clients.forEach(ws => {
       if (!ws.isAlive) {
+        console.log(`💀 Terminando conexão inativa: ${users.get(ws)?.name}`);
         users.delete(ws);
+        terminated++;
         return ws.terminate();
       }
       ws.isAlive = false;
       ws.ping();
     });
+
+    if (terminated > 0) {
+      console.log(`💀 ${terminated} conexão(ões) terminada(s)`);
+      updateOnlineCount();
+    }
   }, 30000);
 
   // Limpeza de memória
