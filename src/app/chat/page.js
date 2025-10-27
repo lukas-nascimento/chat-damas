@@ -1,311 +1,301 @@
-// ============================================
-// ARQUIVO: page.js (COM SISTEMA DE SEGURANÇA)
-// CAMINHO: src/app/chat/page.js
-// ============================================
-
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import LoginScreen from './components/LoginScreen';
 import ChatScreen from './components/ChatScreen';
 
-const colors = [
-  "cadetblue", "darkgoldenrod", "cornflowerblue",
-  "darkkhaki", "hotpink", "gold"
-];
-
 export default function ChatPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [username, setUsername] = useState('');
+  const [userName, setUserName] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
-  const [user, setUser] = useState({ id: null, name: '', color: '' });
-  const websocketRef = useRef(null);
-  const userColorsRef = useRef(new Map());
-  const userIdRef = useRef(null);
+  const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const shouldReconnectRef = useRef(true);
+  const MAX_RECONNECT_ATTEMPTS = 5;
 
-  const getRandomColor = () => colors[Math.floor(Math.random() * colors.length)];
+  const WS_URL = 'wss://chat-damas.onrender.com';
 
-  const getUserColor = (userId) => {
-    if (!userColorsRef.current.has(userId)) {
-      userColorsRef.current.set(userId, getRandomColor());
-    }
-    return userColorsRef.current.get(userId);
+  const getColorForUser = (userId) => {
+    const colors = ['crimson', 'gold', 'cadetblue', 'coral', 'teal', 'purple', 'deeppink', 'lime', 'orange', 'cyan'];
+    return colors[userId % colors.length];
   };
 
-  useEffect(() => {
-    return () => {
-      if (websocketRef.current) websocketRef.current.close();
-    };
-  }, []);
+  const connectWebSocket = useCallback(() => {
+    console.log('🔌 Conectando ao WebSocket:', WS_URL);
 
-  const handleLeaveRoom = () => {
-    console.log('🚪 Saindo do chat...');
-    
-    if (websocketRef.current) {
-      websocketRef.current.close();
-      websocketRef.current = null;
-    }
-    
-    setIsLoggedIn(false);
-    setUsername('');
-    setMessages([]);
-    setMessageInput('');
-    setUser({ id: null, name: '', color: '' });
-    userIdRef.current = null;
-    
-    console.log('✅ Logout realizado com sucesso!');
-  };
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (!username.trim()) return;
-
-    // 🌐 DETECTA O AMBIENTE E USA A URL CORRETA
-    let wsUrl;
-    if (typeof window !== 'undefined') {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      wsUrl = `${protocol}//${host}`;
-    } else {
-      wsUrl = 'ws://localhost:10000';
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
+      wsRef.current.onmessage = null;
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close();
+      }
     }
 
-    console.log('🔌 Conectando ao WebSocket:', wsUrl);
-
-    const ws = new WebSocket(wsUrl);
-    websocketRef.current = ws;
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
 
     ws.onopen = () => {
       console.log('✅ Conectado ao servidor');
-      ws.send(JSON.stringify({ type: 'set_name', data: username }));
+      reconnectAttemptsRef.current = 0;
+
+      if (userName) {
+        console.log('📤 Enviando nome do usuário:', userName);
+        ws.send(JSON.stringify({
+          type: 'set_name',
+          data: userName
+        }));
+      }
     };
 
     ws.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data);
-        console.log('📨 [PAGE.JS] Mensagem recebida:', msg.type, msg);
+        const message = JSON.parse(event.data);
+        console.log('📨 [PAGE.JS] Mensagem recebida:', message.type, message);
 
-        if (msg.type === 'user_id') {
-          const serverUser = {
-            id: msg.data.userId,
-            name: username,
-            color: getRandomColor()
-          };
-          userIdRef.current = msg.data.userId;
-          setUser(serverUser);
-          setIsLoggedIn(true);
-          console.log('🆔 Usuário definido:', serverUser);
+        switch (message.type) {
+          case 'user_id':
+            console.log('🆔 Usuário definido:', message.data);
+            setCurrentUser(message.data);
+            break;
+
+          case 'message':
+            console.log('💬 Nova mensagem:', message.data);
+            setMessages(prev => [...prev, {
+              userId: message.data.userId,
+              userName: message.data.userName,
+              content: message.data.content,
+              timestamp: message.data.timestamp,
+              isSelf: message.data.userName === userName,
+              userColor: getColorForUser(message.data.userId)
+            }]);
+            break;
+
+          case 'audio_message':
+            console.log('🎤 Áudio recebido:', message.data);
+            setMessages(prev => [...prev, {
+              userId: message.data.userId,
+              userName: message.data.userName,
+              content: message.data.content,
+              timestamp: message.data.timestamp,
+              isSelf: message.data.userName === userName,
+              isAudio: true,
+              userColor: getColorForUser(message.data.userId)
+            }]);
+            break;
+
+          case 'image_message':
+            console.log('🖼️ Imagem recebida:', message.data);
+            setMessages(prev => [...prev, {
+              userId: message.data.userId,
+              userName: message.data.userName,
+              content: message.data.content,
+              fileName: message.data.fileName,
+              timestamp: message.data.timestamp,
+              isSelf: message.data.userName === userName,
+              isImage: true,
+              userColor: getColorForUser(message.data.userId)
+            }]);
+            break;
+
+          case 'video_message':
+            console.log('🎥 Vídeo recebido:', message.data);
+            setMessages(prev => [...prev, {
+              userId: message.data.userId,
+              userName: message.data.userName,
+              content: message.data.content,
+              fileName: message.data.fileName,
+              timestamp: message.data.timestamp,
+              isSelf: message.data.userName === userName,
+              isVideo: true,
+              userColor: getColorForUser(message.data.userId)
+            }]);
+            break;
+
+          case 'sticker_message':
+            console.log('😊 Sticker recebido:', message.data);
+            setMessages(prev => [...prev, {
+              userId: message.data.userId,
+              userName: message.data.userName,
+              content: message.data.content,
+              timestamp: message.data.timestamp,
+              isSelf: message.data.userName === userName,
+              isSticker: true,
+              userColor: getColorForUser(message.data.userId)
+            }]);
+            break;
+
+          case 'user_banned_notification':
+            console.log('🚫 Usuário banido:', message.data);
+            setMessages(prev => [...prev, {
+              content: `🚫 ${message.data.userName} foi banido. Motivo: ${message.data.reason}`,
+              timestamp: Date.now(),
+              isSystem: true
+            }]);
+            break;
+
+          case 'online_count':
+            console.log('👥 Usuários online:', message.data.count);
+            break;
+
+          case 'message_blocked':
+            console.warn('⚠️ Mensagem bloqueada:', message.data.reason);
+            alert(message.data.reason);
+            break;
+
+          case 'user_banned':
+            console.error('🚫 Você foi banido:', message.data.reason);
+            alert(`Você foi banido: ${message.data.reason}`);
+            shouldReconnectRef.current = false;
+            break;
+
+          default:
+            console.log('📦 Mensagem não tratada:', message.type);
         }
       } catch (err) {
         console.error('❌ Erro ao processar mensagem:', err);
       }
     };
 
-    ws.onerror = (err) => {
-      console.error('❌ Erro WS:', err);
-      alert('Erro ao conectar ao servidor WebSocket.');
+    ws.onerror = (error) => {
+      console.error('❌ Erro WebSocket:', error);
     };
 
-    ws.onclose = () => {
-      console.log('🔌 Conexão fechada');
-      setIsLoggedIn(false);
+    ws.onclose = (event) => {
+      console.log('🔌 Conexão fechada - Code:', event.code, 'Reason:', event.reason || 'Sem razão');
+      wsRef.current = null;
+
+      if (event.code === 1008) {
+        console.log('🚫 Não reconectando - usuário banido');
+        shouldReconnectRef.current = false;
+        return;
+      }
+
+      if (shouldReconnectRef.current && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttemptsRef.current++;
+        const delay = Math.min(1000 * reconnectAttemptsRef.current, 5000);
+        console.log(`🔄 Tentando reconectar em ${delay}ms (tentativa ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
+        
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (shouldReconnectRef.current) {
+            connectWebSocket();
+          }
+        }, delay);
+      } else if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        console.log('❌ Máximo de tentativas de reconexão atingido');
+        alert('Não foi possível reconectar ao servidor. Por favor, recarregue a página.');
+      }
     };
-  };
+  }, [userName]);
 
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (!messageInput.trim() || !websocketRef.current) return;
 
-    console.log('📤 Enviando mensagem:', messageInput);
-
-    websocketRef.current.send(JSON.stringify({
-      type: 'message',
-      data: messageInput
-    }));
-    setMessageInput('');
-  };
-
-  const handleMessageReceived = (msg) => {
-    console.log('📥 [PAGE.JS] handleMessageReceived chamado');
-    console.log('   - Tipo:', msg.type);
-    console.log('   - Dados:', msg.data);
-
-    // 🆕 MENSAGEM DO SISTEMA (BANIMENTOS)
-    if (msg.type === 'system_message') {
-      console.log('🔔 [PAGE.JS] Mensagem do sistema');
-      
-      setMessages(prev => [...prev, {
-        content: msg.data.content,
-        timestamp: msg.data.timestamp,
-        isSystem: true,
-        isAudio: false,
-        isImage: false,
-        isVideo: false,
-        isSticker: false
-      }]);
+    if (!messageInput.trim()) {
+      console.log('⚠️ Mensagem vazia');
       return;
     }
 
-    // Mensagens de TEXTO
-    if (msg.type === 'message') {
-      const { userId, userName, content } = msg.data;
-      
-      console.log('💬 [PAGE.JS] Adicionando mensagem de texto');
-      
-      setMessages(prev => [...prev, {
-        userId,
-        userName,
-        content,
-        userColor: getUserColor(userId),
-        isSelf: userId === userIdRef.current,
-        isAudio: false,
-        isImage: false,
-        isVideo: false,
-        isSticker: false
-      }]);
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ WebSocket não está conectado');
+      alert('Conexão perdida. Tentando reconectar...');
+      connectWebSocket();
+      return;
     }
 
-    // Mensagens de ÁUDIO
-    else if (msg.type === 'audio_message') {
-      const { userId, userName, content } = msg.data;
-      
-      console.log('🎤 [PAGE.JS] Adicionando mensagem de áudio');
-      
-      setMessages(prev => [...prev, {
-        userId,
-        userName,
-        content,
-        userColor: getUserColor(userId),
-        isSelf: userId === userIdRef.current,
-        isAudio: true,
-        isImage: false,
-        isVideo: false,
-        isSticker: false
-      }]);
-    }
+    try {
+      console.log('📤 Enviando mensagem:', messageInput);
 
-    // Mensagens de IMAGEM
-    else if (msg.type === 'image_message') {
-      const { userId, userName, content, fileName } = msg.data;
-      
-      console.log('🖼️ [PAGE.JS] Adicionando mensagem de imagem');
-      
-      setMessages(prev => [...prev, {
-        userId,
-        userName,
-        content,
-        fileName: fileName || 'imagem.png',
-        userColor: getUserColor(userId),
-        isSelf: userId === userIdRef.current,
-        isAudio: false,
-        isImage: true,
-        isVideo: false,
-        isSticker: false
-      }]);
-    }
+      wsRef.current.send(JSON.stringify({
+        type: 'message',
+        data: messageInput
+      }));
 
-    // Mensagens de VÍDEO
-    else if (msg.type === 'video_message') {
-      const { userId, userName, content, fileName, fileSize } = msg.data;
-      
-      console.log('📹 [PAGE.JS] RECEBENDO VÍDEO!');
-      
-      let videoUrl = content;
-      
-      if (content && content.length > 1000000) {
-        try {
-          console.log('🔄 Convertendo Base64 para Blob URL...');
-          const base64Data = content.split(',')[1] || content;
-          const byteCharacters = atob(base64Data);
-          const byteNumbers = new Array(byteCharacters.length);
-          
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          
-          const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: 'video/mp4' });
-          videoUrl = URL.createObjectURL(blob);
-          console.log('✅ Blob URL criada:', videoUrl);
-        } catch (error) {
-          console.error('❌ Erro ao criar Blob URL:', error);
-          videoUrl = content;
-        }
-      }
-      
-      setMessages(prev => [...prev, {
-        userId,
-        userName,
-        content: videoUrl,
-        fileName: fileName || 'video.mp4',
-        fileSize: fileSize,
-        userColor: getUserColor(userId),
-        isSelf: userId === userIdRef.current,
-        isAudio: false,
-        isImage: false,
-        isVideo: true,
-        isSticker: false
-      }]);
+      console.log('✅ Mensagem enviada com sucesso');
+      setMessageInput('');
 
-      console.log('✅ [PAGE.JS] Mensagem de vídeo adicionada ao estado!');
-    }
-
-    // Mensagens de STICKER
-    else if (msg.type === 'sticker_message') {
-      const { userId, userName, content } = msg.data;
-      
-      console.log('🎨 [PAGE.JS] Adicionando mensagem de sticker');
-      
-      setMessages(prev => [...prev, {
-        userId,
-        userName,
-        content,
-        userColor: getUserColor(userId),
-        isSelf: userId === userIdRef.current,
-        isAudio: false,
-        isImage: false,
-        isVideo: false,
-        isSticker: true
-      }]);
-    }
-
-    else {
-      console.warn('⚠️ [PAGE.JS] Tipo de mensagem desconhecido:', msg.type);
+    } catch (error) {
+      console.error('❌ Erro ao enviar mensagem:', error);
+      alert('Erro ao enviar mensagem. Tente novamente.');
     }
   };
 
-  useEffect(() => {
-    console.log('🔄 [PAGE.JS] Messages atualizado:', messages.length, 'mensagens');
-    messages.forEach((msg, i) => {
-      if (msg.isSystem) {
-        console.log(`   ${i}: 🔔 SISTEMA: ${msg.content}`);
-      } else {
-        console.log(`   ${i}: ${msg.isVideo ? '📹' : msg.isImage ? '🖼️' : msg.isAudio ? '🎤' : '💬'} ${msg.userName}: ${msg.isVideo ? 'VIDEO' : msg.isImage ? 'IMAGE' : msg.isAudio ? 'AUDIO' : msg.content}`);
+  const handleMessageReceived = (message) => {
+    console.log('🔵 [PAGE.JS] handleMessageReceived chamado:', message.type);
+  };
+
+  const handleLogin = (name) => {
+    console.log('🔑 Login com nome:', name);
+    setUserName(name);
+    setIsLoggedIn(true);
+    shouldReconnectRef.current = true;
+    reconnectAttemptsRef.current = 0;
+  };
+
+  const handleLeaveRoom = () => {
+    console.log('👋 Saindo do chat...');
+    
+    shouldReconnectRef.current = false;
+    
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close();
       }
-    });
-  }, [messages]);
+      wsRef.current = null;
+    }
+
+    setIsLoggedIn(false);
+    setMessages([]);
+    setCurrentUser(null);
+    setUserName('');
+    reconnectAttemptsRef.current = 0;
+  };
+
+  useEffect(() => {
+    if (isLoggedIn && userName) {
+      connectWebSocket();
+    }
+
+    return () => {
+      console.log('🧹 Limpando componente...');
+      shouldReconnectRef.current = false;
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        if (wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.close();
+        }
+      }
+    };
+  }, [isLoggedIn, userName, connectWebSocket]);
+
+  if (!isLoggedIn) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
 
   return (
-    <section className="container">
-      {!isLoggedIn ? (
-        <LoginScreen 
-          username={username}
-          setUsername={setUsername}
-          onLogin={handleLogin}
-        />
-      ) : (
-        <ChatScreen 
-          websocket={websocketRef.current}
-          messages={messages}
-          messageInput={messageInput}
-          setMessageInput={setMessageInput}
-          onSendMessage={handleSendMessage}
-          onMessageReceived={handleMessageReceived}
-          currentUserName={username}
-          onLeaveRoom={handleLeaveRoom}
-        />
-      )}
-    </section>
+    <ChatScreen
+      websocket={wsRef.current}
+      messages={messages}
+      messageInput={messageInput}
+      setMessageInput={setMessageInput}
+      onSendMessage={handleSendMessage}
+      onMessageReceived={handleMessageReceived}
+      currentUserName={userName}
+      onLeaveRoom={handleLeaveRoom}
+    />
   );
 }
