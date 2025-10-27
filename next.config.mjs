@@ -6,9 +6,6 @@ const nextConfig = {
   // Comprimir arquivos estáticos
   compress: true,
   
-  // Otimizar produção
-  swcMinify: true,
-  
   // Reduzir tamanho do build
   productionBrowserSourceMaps: false,
   
@@ -25,11 +22,6 @@ const nextConfig = {
   
   // Desabilitar x-powered-by header
   poweredByHeader: false,
-  
-  // Configuração do servidor (para ambiente de produção limitado)
-  serverRuntimeConfig: {
-    maxServerMemory: 450, // Limita uso de memória do servidor a 450MB
-  },
 };
 
 export default nextConfig;
