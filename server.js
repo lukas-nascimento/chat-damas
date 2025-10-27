@@ -1,27 +1,19 @@
 // ============================================
-// ARQUIVO: server.js (OTIMIZADO PARA BAIXO USO DE MEMÓRIA)
+// ARQUIVO: server.js (Next.js + WebSocket Integrado)
 // CAMINHO: server.js (raiz do projeto)
 // ============================================
 
+const { createServer } = require('http');
+const { parse } = require('url');
+const next = require('next');
 const WebSocket = require('ws');
 
-const PORT = process.env.PORT || 8080;
+const dev = process.env.NODE_ENV !== 'production';
+const hostname = '0.0.0.0';
+const port = parseInt(process.env.PORT, 10) || 3000;
 
-const wss = new WebSocket.Server({ 
-  port: PORT,
-  maxPayload: 10 * 1024 * 1024, // REDUZIDO para 10MB (suficiente para imagens)
-  perMessageDeflate: {
-    zlibDeflateOptions: {
-      chunkSize: 1024,
-      memLevel: 7,
-      level: 3
-    },
-    zlibInflateOptions: {
-      chunkSize: 10 * 1024
-    },
-    threshold: 1024
-  }
-});
+const app = next({ dev, hostname, port });
+const handle = app.getRequestHandler();
 
 const users = new Map();
 const bannedUsers = new Map();
@@ -153,18 +145,6 @@ function containsLink(message) {
   return urlRegex.test(message);
 }
 
-function containsBannedWord(message) {
-  const lowerMessage = message.toLowerCase();
-  return bannedWords.some(word => {
-    if (word.includes(' ')) {
-      return lowerMessage.includes(word.toLowerCase());
-    } else {
-      const regex = new RegExp(`\\b${word}\\b`, 'i');
-      return regex.test(lowerMessage);
-    }
-  });
-}
-
 function findBannedWord(message) {
   const lowerMessage = message.toLowerCase();
   return bannedWords.find(word => {
@@ -178,7 +158,6 @@ function findBannedWord(message) {
 }
 
 function banUser(ws, userId, userName, reason) {
-  // Limita número de usuários banidos para economizar memória
   if (bannedUsers.size >= MAX_BANNED_USERS) {
     const oldestKey = bannedUsers.keys().next().value;
     bannedUsers.delete(oldestKey);
@@ -216,7 +195,6 @@ function validateMessage(message, ws, user) {
     return false;
   }
 
-  // Limita tamanho da mensagem
   if (message.length > MAX_MESSAGE_LENGTH) {
     ws.send(JSON.stringify({
       type: 'message_blocked',
@@ -233,7 +211,6 @@ function validateMessage(message, ws, user) {
     }
     const violations = userViolations.get(user.id);
     
-    // Limita violações armazenadas por usuário
     if (violations.length >= MAX_VIOLATIONS_PER_USER) {
       violations.shift();
     }
@@ -273,15 +250,6 @@ function validateMessage(message, ws, user) {
   return true;
 }
 
-// ==========================================
-// SERVIDOR
-// ==========================================
-
-console.log(`🚀 Servidor WebSocket rodando em ws://localhost:${PORT}`);
-console.log(`📊 Max Payload: ${wss.options.maxPayload / 1024 / 1024}MB`);
-console.log(`🛡️ Sistema de segurança ativado!`);
-console.log(`💾 Modo economia de memória ativado`);
-
 function broadcastEvent(type, data) {
   const message = JSON.stringify({ type, data });
   wss.clients.forEach(client => {
@@ -296,7 +264,6 @@ function broadcastEvent(type, data) {
 }
 
 function updateOnlineCount() {
-  // Limpa conexões mortas
   for (const [ws, user] of users.entries()) {
     if (ws.readyState !== WebSocket.OPEN) {
       users.delete(ws);
@@ -314,11 +281,9 @@ function updateOnlineCount() {
   });
 }
 
-// Limpeza periódica de memória
 function cleanup() {
   console.log('🧹 Executando limpeza de memória...');
   
-  // Remove violações antigas (mais de 1 hora)
   const oneHourAgo = Date.now() - 60 * 60 * 1000;
   for (const [userId, violations] of userViolations.entries()) {
     const recentViolations = violations.filter(v => v.timestamp > oneHourAgo);
@@ -329,7 +294,6 @@ function cleanup() {
     }
   }
 
-  // Remove bans antigos (mais de 24 horas)
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
   for (const [userId, banInfo] of bannedUsers.entries()) {
     if (banInfo.timestamp < oneDayAgo) {
@@ -337,7 +301,6 @@ function cleanup() {
     }
   }
 
-  // Força coleta de lixo se disponível
   if (global.gc) {
     global.gc();
     console.log('♻️ Garbage collection executado');
@@ -347,149 +310,191 @@ function cleanup() {
   console.log(`💾 Memória após limpeza: ${Math.round(used.heapUsed / 1024 / 1024)}MB`);
 }
 
-wss.on('connection', (ws) => {
-  const userId = userIdCounter++;
-  const userName = `Usuário ${userId}`;
-  ws.isAlive = true;
+// Variável global para o WebSocket Server
+let wss;
 
-  if (bannedUsers.has(userId)) {
-    const banInfo = bannedUsers.get(userId);
-    ws.send(JSON.stringify({
-      type: 'user_banned',
-      data: banInfo
-    }));
-    ws.close();
-    return;
-  }
-
-  users.set(ws, { id: userId, name: userName });
-
-  ws.send(JSON.stringify({
-    type: 'user_id',
-    data: { userId, userName }
-  }));
-
-  updateOnlineCount();
-
-  ws.on('pong', () => ws.isAlive = true);
-
-  ws.on('message', (msg) => {
+app.prepare().then(() => {
+  const server = createServer(async (req, res) => {
     try {
-      const message = JSON.parse(msg);
-      const user = users.get(ws);
-      
-      if (!user) return;
+      const parsedUrl = parse(req.url, true);
+      await handle(req, res, parsedUrl);
+    } catch (err) {
+      console.error('Error occurred handling', req.url, err);
+      res.statusCode = 500;
+      res.end('internal server error');
+    }
+  });
 
-      if (message.type === 'set_name') {
-        user.name = message.data || user.name;
-        users.set(ws, user);
+  // WebSocket Server integrado
+  wss = new WebSocket.Server({ 
+    server,
+    maxPayload: 10 * 1024 * 1024,
+    perMessageDeflate: {
+      zlibDeflateOptions: {
+        chunkSize: 1024,
+        memLevel: 7,
+        level: 3
+      },
+      zlibInflateOptions: {
+        chunkSize: 10 * 1024
+      },
+      threshold: 1024
+    }
+  });
+
+  console.log(`🚀 Servidor Next.js + WebSocket iniciando...`);
+  console.log(`📊 Max Payload: 10MB`);
+  console.log(`🛡️ Sistema de segurança ativado!`);
+  console.log(`💾 Modo economia de memória ativado`);
+
+  wss.on('connection', (ws) => {
+    const userId = userIdCounter++;
+    const userName = `Usuário ${userId}`;
+    ws.isAlive = true;
+
+    if (bannedUsers.has(userId)) {
+      const banInfo = bannedUsers.get(userId);
+      ws.send(JSON.stringify({
+        type: 'user_banned',
+        data: banInfo
+      }));
+      ws.close();
+      return;
+    }
+
+    users.set(ws, { id: userId, name: userName });
+
+    ws.send(JSON.stringify({
+      type: 'user_id',
+      data: { userId, userName }
+    }));
+
+    updateOnlineCount();
+
+    ws.on('pong', () => ws.isAlive = true);
+
+    ws.on('message', (msg) => {
+      try {
+        const message = JSON.parse(msg);
+        const user = users.get(ws);
+        
+        if (!user) return;
+
+        if (message.type === 'set_name') {
+          user.name = message.data || user.name;
+          users.set(ws, user);
+          updateOnlineCount();
+        }
+
+        else if (message.type === 'message') {
+          if (!validateMessage(message.data, ws, user)) return;
+
+          broadcastEvent('message', {
+            userId: user.id,
+            userName: user.name,
+            content: message.data,
+            timestamp: Date.now()
+          });
+        }
+
+        else if (message.type === 'audio_message') {
+          broadcastEvent('audio_message', {
+            userId: user.id,
+            userName: user.name,
+            content: message.data.audio,
+            timestamp: Date.now()
+          });
+        }
+
+        else if (message.type === 'image_message') {
+          broadcastEvent('image_message', {
+            userId: user.id,
+            userName: user.name,
+            content: message.data.image,
+            fileName: message.data.fileName || 'imagem.png',
+            timestamp: Date.now()
+          });
+        }
+
+        else if (message.type === 'video_message') {
+          ws.send(JSON.stringify({
+            type: 'message_blocked',
+            data: { reason: 'Vídeos temporariamente desabilitados para economia de memória' }
+          }));
+        }
+
+        else if (message.type === 'sticker_message') {
+          broadcastEvent('sticker_message', {
+            userId: user.id,
+            userName: user.name,
+            content: message.data.sticker,
+            timestamp: Date.now()
+          });
+        }
+
+        else if (message.type === 'typing_start' || message.type === 'typing_stop') {
+          broadcastEvent('user_typing', {
+            userId: user.id,
+            userName: user.name,
+            isTyping: message.type === 'typing_start'
+          });
+        }
+
+      } catch (err) {
+        console.error('❌ Erro:', err.message);
+      }
+    });
+
+    ws.on('close', () => {
+      const user = users.get(ws);
+      if (user) {
+        users.delete(ws);
         updateOnlineCount();
       }
+    });
 
-      else if (message.type === 'message') {
-        if (!validateMessage(message.data, ws, user)) return;
-
-        broadcastEvent('message', {
-          userId: user.id,
-          userName: user.name,
-          content: message.data,
-          timestamp: Date.now()
-        });
-      }
-
-      else if (message.type === 'audio_message') {
-        broadcastEvent('audio_message', {
-          userId: user.id,
-          userName: user.name,
-          content: message.data.audio,
-          timestamp: Date.now()
-        });
-      }
-
-      else if (message.type === 'image_message') {
-        broadcastEvent('image_message', {
-          userId: user.id,
-          userName: user.name,
-          content: message.data.image,
-          fileName: message.data.fileName || 'imagem.png',
-          timestamp: Date.now()
-        });
-      }
-
-      else if (message.type === 'video_message') {
-        // VÍDEOS DESABILITADOS para economizar memória
-        ws.send(JSON.stringify({
-          type: 'message_blocked',
-          data: { reason: 'Vídeos temporariamente desabilitados para economia de memória' }
-        }));
-      }
-
-      else if (message.type === 'sticker_message') {
-        broadcastEvent('sticker_message', {
-          userId: user.id,
-          userName: user.name,
-          content: message.data.sticker,
-          timestamp: Date.now()
-        });
-      }
-
-      else if (message.type === 'typing_start' || message.type === 'typing_stop') {
-        broadcastEvent('user_typing', {
-          userId: user.id,
-          userName: user.name,
-          isTyping: message.type === 'typing_start'
-        });
-      }
-
-    } catch (err) {
-      console.error('❌ Erro:', err.message);
-    }
+    ws.on('error', (err) => console.error('❌ Erro WebSocket:', err.message));
   });
 
-  ws.on('close', () => {
-    const user = users.get(ws);
-    if (user) {
-      users.delete(ws);
-      updateOnlineCount();
+  // Heartbeat
+  setInterval(() => {
+    wss.clients.forEach(ws => {
+      if (!ws.isAlive) {
+        users.delete(ws);
+        return ws.terminate();
+      }
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  // Limpeza de memória
+  setInterval(cleanup, CLEANUP_INTERVAL);
+
+  // Monitor de memória
+  setInterval(() => {
+    const used = process.memoryUsage();
+    const memMB = Math.round(used.heapUsed / 1024 / 1024);
+    console.log(`💾 Memória: ${memMB}MB | Usuários: ${users.size} | Banidos: ${bannedUsers.size}`);
+    
+    if (memMB > 400) {
+      console.log('⚠️ ALERTA: Memória alta! Executando limpeza...');
+      cleanup();
     }
+  }, 60000);
+
+  server.listen(port, (err) => {
+    if (err) throw err;
+    console.log(`✅ Servidor rodando em http://${hostname}:${port}`);
+    console.log(`🌐 WebSocket disponível em wss://chat-damas.onrender.com`);
   });
 
-  ws.on('error', (err) => console.error('❌ Erro WebSocket:', err.message));
-});
-
-// Heartbeat
-setInterval(() => {
-  wss.clients.forEach(ws => {
-    if (!ws.isAlive) {
-      users.delete(ws);
-      return ws.terminate();
-    }
-    ws.isAlive = false;
-    ws.ping();
+  // Encerramento gracioso
+  process.on('SIGINT', () => {
+    console.log('⏹️ Encerrando servidor...');
+    users.clear();
+    bannedUsers.clear();
+    userViolations.clear();
+    wss.close(() => process.exit(0));
   });
-}, 30000); // 30 segundos
-
-// Limpeza de memória
-setInterval(cleanup, CLEANUP_INTERVAL);
-
-// Monitor de memória
-setInterval(() => {
-  const used = process.memoryUsage();
-  const memMB = Math.round(used.heapUsed / 1024 / 1024);
-  console.log(`💾 Memória: ${memMB}MB | Usuários: ${users.size} | Banidos: ${bannedUsers.size}`);
-  
-  // Alerta se memória alta
-  if (memMB > 400) {
-    console.log('⚠️ ALERTA: Memória alta! Executando limpeza...');
-    cleanup();
-  }
-}, 60000);
-
-// Encerramento gracioso
-process.on('SIGINT', () => {
-  console.log('⏹️ Encerrando servidor...');
-  users.clear();
-  bannedUsers.clear();
-  userViolations.clear();
-  wss.close(() => process.exit(0));
 });
