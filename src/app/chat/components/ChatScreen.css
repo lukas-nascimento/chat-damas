@@ -1,5 +1,5 @@
 /* ============================================
-   ARQUIVO: ChatScreen.css (COMPLETO E RESPONSIVO)
+   ARQUIVO: ChatScreen.css (COMPLETO E OTIMIZADO)
    CAMINHO: src/app/chat/components/ChatScreen.css
    ============================================ */
 
@@ -7,22 +7,21 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  height: 100dvh; /* ✅ Dynamic viewport height para mobile */
+  height: 100dvh;
   width: 100%;
   
-  /* 🎨 Background com imagem nítida */
   background-image: url('/background.png');
   background-size: 500px 500px;
   background-position: center;
   background-repeat: repeat;
   background-attachment: fixed;
   
-  position: fixed; /* ✅ CRÍTICO: Previne scroll externo */
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  overflow: hidden; /* ✅ Remove scroll da página */
+  overflow: hidden;
 }
 
 .chat::before {
@@ -47,7 +46,7 @@
   align-items: center;
   justify-content: space-between;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  flex-shrink: 0; /* ✅ CRÍTICO: Não encolhe */
+  flex-shrink: 0;
   position: relative;
   z-index: 100;
 }
@@ -117,22 +116,20 @@
    MENSAGENS (ÁREA DE SCROLL)
    ============================================ */
 .chat__messages {
-  flex: 1; /* ✅ CRÍTICO: Ocupa espaço disponível */
-  overflow-y: auto; /* ✅ CRÍTICO: Scroll apenas aqui */
+  flex: 1;
+  overflow-y: auto;
   overflow-x: hidden;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   
-  /* Fundo semi-transparente SEM blur */
   background: rgba(255, 255, 255, 0.05);
   position: relative;
   z-index: 1;
-  -webkit-overflow-scrolling: touch; /* ✅ Scroll suave no iOS */
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Scrollbar personalizada */
 .chat__messages::-webkit-scrollbar {
   width: 8px;
 }
@@ -275,7 +272,7 @@
 }
 
 /* ============================================
-   FORMULÁRIO (FIXO NO RODAPÉ)
+   FORMULÁRIO (FIXO NO RODAPÉ) - OTIMIZADO
    ============================================ */
 .chat__form {
   display: flex;
@@ -285,10 +282,16 @@
   backdrop-filter: blur(10px);
   border-top: 1px solid rgba(255, 255, 255, 0.2);
   align-items: center;
-  flex-shrink: 0; /* ✅ CRÍTICO: Não encolhe */
+  flex-shrink: 0;
   position: relative;
   z-index: 100;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  
+  /* 🚀 OTIMIZAÇÕES CRÍTICAS */
+  transition: none !important;
+  transform: translateZ(0);
+  will-change: auto;
+  contain: layout style paint;
 }
 
 .chat__input {
@@ -301,19 +304,24 @@
   outline: none;
   background: white;
   color: #333;
-  transition: all 0.3s ease;
+  
+  /* 🚀 OTIMIZAÇÃO: Transição reduzida */
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transform: translateZ(0);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .chat__input:focus {
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  transition: none; /* Remove transição ao focar */
 }
 
 .chat__input::placeholder {
   color: #999;
 }
 
-/* 🎯 BOTÕES - TAMANHO CONSISTENTE */
+/* 🎯 BOTÕES - OTIMIZADOS PARA PERFORMANCE */
 .chat__button,
 .chat__media-button {
   width: 42px;
@@ -328,21 +336,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
   flex-shrink: 0;
   padding: 0;
+  
+  /* 🚀 OTIMIZAÇÕES CRÍTICAS */
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .chat__button:hover,
 .chat__media-button:hover {
-  transform: scale(1.08);
+  transform: scale(1.08) translateZ(0);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.6);
 }
 
 .chat__button:active,
 .chat__media-button:active {
-  transform: scale(0.95);
+  transform: scale(0.95) translateZ(0);
 }
 
 /* 🎤 Botão de áudio específico */
@@ -371,12 +384,47 @@
 
 .material-symbols-outlined {
   font-size: 22px;
+  pointer-events: none;
+  user-select: none;
 }
 
-/* Ajustar ícones do lucide-react */
 .chat__media-button svg {
   width: 22px;
   height: 22px;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ============================================
+   🚀 OTIMIZAÇÕES ESPECÍFICAS PARA MOBILE
+   ============================================ */
+
+/* Remove hover effects no mobile (melhora performance) */
+@media (hover: none) and (pointer: coarse) {
+  .chat__media-button:hover,
+  .chat__button:hover,
+  .chat__button--audio:hover {
+    transform: translateZ(0) !important;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+  }
+  
+  .chat__leave-button:hover {
+    transform: none !important;
+    background: #ff4757;
+  }
+  
+  .close-audio-recorder:hover {
+    transform: none !important;
+  }
+}
+
+/* Força GPU acceleration em todos os elementos do form no mobile */
+@media (max-width: 768px) {
+  .chat__form,
+  .chat__form * {
+    transform: translateZ(0);
+    will-change: auto;
+  }
 }
 
 /* ============================================
@@ -419,7 +467,7 @@
 
   .chat__input {
     padding: 10px 16px;
-    font-size: 16px; /* ✅ Mínimo 16px para prevenir zoom no iOS */
+    font-size: 16px;
   }
 
   .chat__button,
@@ -541,8 +589,7 @@
   }
 }
 
-/* ✅ Previne comportamentos indesejados no mobile */
 body {
-  overscroll-behavior: none; /* Previne bounce scroll */
+  overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
 }

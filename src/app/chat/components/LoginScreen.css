@@ -1,4 +1,7 @@
-/* src/app/chat/components/LoginScreen.css */
+/* ============================================
+   ARQUIVO: LoginScreen.css (OTIMIZADO)
+   CAMINHO: src/app/chat/components/LoginScreen.css
+   ============================================ */
 
 .login {
   min-height: 100vh;
@@ -11,93 +14,80 @@
   overflow: hidden;
 }
 
-/* Ícones flutuantes de anonimato no fundo - BEM VISÍVEIS */
+/* 🚀 OTIMIZAÇÃO: Ícones flutuantes simplificados para mobile */
 .login::before {
-  content: '📨 🔒 🎭 ✉️ 🕵️ 💌 🗝️ 👤 📬 🤫 📨 🔒 🎭 ✉️ 🕵️ 💌 🗝️ 👤 📬 🤫 📨 🔒 🎭 ✉️ 🕵️';
+  content: '📨 🔒 🎭 ✉️ 🕵️ 💌 🗝️ 👤 📬 🤫';
   position: absolute;
   width: 150%;
   height: 150%;
   top: -25%;
   left: -25%;
-  font-size: 4rem;
-  color: rgba(0, 255, 255, 0.25);
+  font-size: 3rem;
+  color: rgba(0, 255, 255, 0.2);
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-around;
-  gap: 4rem;
-  padding: 3rem;
-  animation: floatIconsMove 50s linear infinite;
-  filter: blur(0.5px);
+  gap: 3rem;
+  padding: 2rem;
   line-height: 2;
-  letter-spacing: 4rem;
+  letter-spacing: 3rem;
   z-index: 0;
-  text-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+  text-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+  
+  /* 🚀 OTIMIZAÇÃO CRÍTICA */
+  animation: floatIconsMove 80s linear infinite;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
+/* Animação mais lenta e suave */
 @keyframes floatIconsMove {
-  0% {
-    transform: translateY(0) translateX(0) rotate(0deg);
-    opacity: 0.25;
-  }
-  25% {
-    transform: translateY(-150px) translateX(100px) rotate(8deg);
-    opacity: 0.35;
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0.2;
   }
   50% {
-    transform: translateY(-80px) translateX(-80px) rotate(-5deg);
-    opacity: 0.3;
-  }
-  75% {
-    transform: translateY(-180px) translateX(120px) rotate(6deg);
-    opacity: 0.32;
-  }
-  100% {
-    transform: translateY(0) translateX(0) rotate(0deg);
+    transform: translate3d(-50px, -100px, 0) rotate(3deg);
     opacity: 0.25;
   }
 }
 
-/* Segunda camada de ícones - ainda mais visível */
+/* Segunda camada - também otimizada */
 .login::after {
-  content: '🎭 💌 🕵️ 📬 🔒 ✉️ 🗝️ 👤 📨 🤫';
+  content: '🎭 💌 🕵️ 📬 🔒';
   position: absolute;
   width: 150%;
   height: 150%;
   top: -20%;
   left: -20%;
-  font-size: 3.5rem;
-  color: rgba(255, 0, 150, 0.3);
+  font-size: 2.5rem;
+  color: rgba(255, 0, 150, 0.2);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-evenly;
-  gap: 5rem;
-  padding: 4rem;
-  animation: floatIconsReverse 60s linear infinite;
-  filter: blur(0.5px);
+  gap: 4rem;
+  padding: 3rem;
   z-index: 0;
   line-height: 2.5;
   letter-spacing: 3rem;
-  text-shadow: 0 0 25px rgba(255, 0, 150, 0.5);
+  text-shadow: 0 0 20px rgba(255, 0, 150, 0.4);
+  
+  /* 🚀 OTIMIZAÇÃO CRÍTICA */
+  animation: floatIconsReverse 100s linear infinite;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 @keyframes floatIconsReverse {
-  0% {
-    transform: translateY(0) translateX(0) rotate(0deg);
-    opacity: 0.3;
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0.2;
   }
-  33% {
-    transform: translateY(120px) translateX(-100px) rotate(-6deg);
-    opacity: 0.4;
-  }
-  66% {
-    transform: translateY(60px) translateX(80px) rotate(4deg);
-    opacity: 0.35;
-  }
-  100% {
-    transform: translateY(0) translateX(0) rotate(0deg);
-    opacity: 0.3;
+  50% {
+    transform: translate3d(50px, 80px, 0) rotate(-3deg);
+    opacity: 0.25;
   }
 }
 
@@ -114,6 +104,9 @@
   border: 1px solid rgba(0, 217, 255, 0.3);
   position: relative;
   z-index: 10;
+  
+  /* 🚀 OTIMIZAÇÃO */
+  transform: translateZ(0);
 }
 
 /* Imagem do Grupo */
@@ -133,6 +126,10 @@
   cursor: pointer;
   overflow: visible;
   border: 3px solid rgba(255, 255, 255, 0.2);
+  
+  /* 🚀 OTIMIZAÇÃO */
+  transform: translateZ(0);
+  transition: box-shadow 1s ease;
 }
 
 .login__group-image img {
@@ -153,16 +150,16 @@
   filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.8));
 }
 
-/* Efeito de brilho suave rosa e ciano ao redor da imagem */
+/* 🚀 Brilho otimizado - sem blur excessivo */
 .login__group-image::before {
   content: '';
   position: absolute;
   inset: -10px;
   border-radius: 50%;
-  background: rgba(0, 217, 255, 0.4);
-  animation: pulseGlowCyan 2.5s ease-in-out infinite;
-  filter: blur(15px);
+  background: radial-gradient(circle, rgba(0, 217, 255, 0.4) 0%, transparent 70%);
+  animation: pulseGlowCyan 3s ease-in-out infinite;
   z-index: -1;
+  will-change: opacity;
 }
 
 .login__group-image::after {
@@ -170,28 +167,20 @@
   position: absolute;
   inset: -18px;
   border-radius: 50%;
-  background: rgba(255, 0, 153, 0.3);
-  animation: pulseGlowPink 2.5s ease-in-out infinite 1.25s;
-  filter: blur(20px);
+  background: radial-gradient(circle, rgba(255, 0, 153, 0.3) 0%, transparent 70%);
+  animation: pulseGlowPink 3s ease-in-out infinite 1.5s;
   z-index: -1;
+  will-change: opacity;
 }
 
 @keyframes pulseGlowCyan {
-  0%, 100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 0.7;
-  }
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
 }
 
 @keyframes pulseGlowPink {
-  0%, 100% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 0.6;
-  }
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.5; }
 }
 
 /* Container do título */
@@ -219,10 +208,8 @@
   color: #00d9ff;
   text-shadow: 
     0 0 15px #00d9ff,
-    0 0 30px #00d9ff,
-    0 0 45px #0099ff;
+    0 0 30px #00d9ff;
   font-style: normal;
-  transform: skew(0deg);
   transition: all 0.3s ease;
 }
 
@@ -230,27 +217,18 @@
   font-size: 0.65em;
   color: #80e5ff;
   font-style: normal;
-  transform: skew(0deg);
   letter-spacing: 6px;
-  text-shadow: 
-    0 0 10px #00d9ff,
-    0 0 20px #00d9ff;
+  text-shadow: 0 0 10px #00d9ff;
   font-weight: 500;
 }
 
 .login__title-word--neon {
   position: relative;
-  animation: neonFlicker 3s ease-in-out infinite;
-  text-shadow: 
-    0 0 20px #ff0099,
-    0 0 40px #ff0099,
-    0 0 60px #ff0099,
-    0 0 80px #ff0066,
-    0 0 120px #ff0066,
-    0 0 160px #ff0066;
+  animation: neonFlicker 4s ease-in-out infinite;
+  will-change: opacity;
 }
 
-/* Rabiscos decorativos ao redor do título */
+/* Rabiscos decorativos */
 .login__title-wrapper::before {
   content: '✨';
   position: absolute;
@@ -258,8 +236,7 @@
   top: 50%;
   transform: translateY(-50%);
   font-size: 1.5rem;
-  animation: twinkle 2s ease-in-out infinite;
-  filter: drop-shadow(0 0 5px #00d9ff);
+  animation: twinkle 3s ease-in-out infinite;
 }
 
 .login__title-wrapper::after {
@@ -269,28 +246,24 @@
   top: 50%;
   transform: translateY(-50%);
   font-size: 1.5rem;
-  animation: twinkle 2s ease-in-out infinite 1s;
-  filter: drop-shadow(0 0 5px #ff0099);
+  animation: twinkle 3s ease-in-out infinite 1.5s;
 }
 
+/* 🚀 Animações simplificadas */
 @keyframes neonFlicker {
   0%, 100% {
     text-shadow: 
       0 0 20px #ff0099,
       0 0 40px #ff0099,
-      0 0 60px #ff0099,
-      0 0 80px #ff0066,
-      0 0 120px #ff0066,
-      0 0 160px #ff0066;
+      0 0 60px #ff0099;
+    opacity: 1;
   }
   50% {
     text-shadow: 
       0 0 10px #ff0099,
       0 0 20px #ff0099,
-      0 0 30px #ff0099,
-      0 0 40px #ff0066,
-      0 0 60px #ff0066,
-      0 0 80px #ff0066;
+      0 0 30px #ff0099;
+    opacity: 0.8;
   }
 }
 
@@ -298,16 +271,14 @@
   0%, 100% {
     opacity: 1;
     transform: translateY(-50%) scale(1);
-    filter: brightness(1);
   }
   50% {
     opacity: 0.5;
-    transform: translateY(-50%) scale(1.2);
-    filter: brightness(1.5);
+    transform: translateY(-50%) scale(1.1);
   }
 }
 
-/* Estilo para o subtítulo com destaque */
+/* Subtítulo */
 .login__subtitle--accent {
   color: #80e5ff;
   font-size: 0.95rem;
@@ -342,7 +313,11 @@
   border-radius: 10px;
   color: white;
   font-size: 1rem;
-  transition: all 0.3s ease;
+  
+  /* 🚀 OTIMIZAÇÃO */
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transform: translateZ(0);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .login__input::placeholder {
@@ -370,10 +345,14 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(0, 217, 255, 0.4);
   position: relative;
   overflow: hidden;
+  
+  /* 🚀 OTIMIZAÇÃO */
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transform: translateZ(0);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .login__button::before {
@@ -386,7 +365,7 @@
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
   transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
+  transition: width 0.4s ease, height 0.4s ease;
 }
 
 .login__button:hover::before {
@@ -395,19 +374,19 @@
 }
 
 .login__button:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) translateZ(0);
   box-shadow: 0 6px 25px rgba(0, 217, 255, 0.6);
-  background: linear-gradient(135deg, #ff33aa, #33e0ff);
 }
 
 .login__button:active {
-  transform: translateY(0);
+  transform: translateY(0) translateZ(0);
 }
 
 .login__button span,
 .login__button svg {
   position: relative;
   z-index: 1;
+  pointer-events: none;
 }
 
 .login__button svg {
@@ -422,6 +401,52 @@
   font-size: 0.875rem;
 }
 
+/* ============================================
+   🚀 OTIMIZAÇÕES ESPECÍFICAS MOBILE
+   ============================================ */
+
+/* Remove hover effects no mobile */
+@media (hover: none) and (pointer: coarse) {
+  .login__button:hover {
+    transform: translateZ(0);
+    box-shadow: 0 4px 15px rgba(0, 217, 255, 0.4);
+  }
+  
+  .login__button:hover::before {
+    width: 0;
+    height: 0;
+  }
+}
+
+/* Desabilita animações complexas em telas pequenas */
+@media (max-width: 768px) {
+  /* Simplifica ícones flutuantes */
+  .login::before,
+  .login::after {
+    animation-duration: 120s;
+    font-size: 2rem;
+    opacity: 0.15;
+  }
+  
+  /* Remove efeitos de brilho pesados */
+  .login__group-image::before,
+  .login__group-image::after {
+    display: none;
+  }
+  
+  .login__group-image {
+    box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+  }
+  
+  /* Simplifica animação do texto neon */
+  .login__title-word--neon {
+    animation: none;
+    text-shadow: 
+      0 0 15px #ff0099,
+      0 0 30px #ff0099;
+  }
+}
+
 /* Responsividade */
 @media (max-width: 500px) {
   .login {
@@ -429,13 +454,14 @@
   }
 
   .login::before {
-    font-size: 2.5rem;
+    font-size: 1.8rem;
     gap: 2rem;
+    letter-spacing: 2rem;
   }
 
   .login::after {
-    font-size: 2rem;
-    gap: 3rem;
+    font-size: 1.5rem;
+    gap: 2.5rem;
   }
 
   .login__card {
@@ -463,5 +489,20 @@
   .login__group-image svg {
     width: 50px;
     height: 50px;
+  }
+}
+
+/* 🚀 Modo de performance extrema para dispositivos muito fracos */
+@media (max-width: 360px) {
+  .login::before,
+  .login::after {
+    animation: none;
+    opacity: 0.1;
+  }
+  
+  .login__title-word--neon,
+  .login__title-wrapper::before,
+  .login__title-wrapper::after {
+    animation: none;
   }
 }
