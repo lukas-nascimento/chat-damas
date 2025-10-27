@@ -1,5 +1,5 @@
 // ============================================
-// ARQUIVO: ChatScreen.js (COM SEGURANÇA INTEGRADA)
+// ARQUIVO: ChatScreen.js (COMPLETO E CORRIGIDO)
 // CAMINHO: src/app/chat/components/ChatScreen.js
 // ============================================
 
@@ -66,7 +66,6 @@ export default function ChatScreen({
         // 🆕 NOTIFICAÇÃO DE USUÁRIO BANIDO
         if (msg.type === 'user_banned_notification') {
           console.log('🚫 Usuário banido:', msg.data);
-          // Adiciona mensagem do sistema
           if (onMessageReceived) {
             onMessageReceived({
               type: 'system_message',
@@ -153,8 +152,7 @@ export default function ChatScreen({
     const validation = validateMessage(messageInput);
 
     if (!validation.isValid) {
-      // Simplesmente não envia, sem alerta
-      setMessageInput(''); // Limpa o input
+      setMessageInput('');
       return;
     }
 

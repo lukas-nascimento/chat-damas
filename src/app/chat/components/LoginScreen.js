@@ -1,10 +1,14 @@
-// src/app/chat/components/LoginScreen.js
+// ============================================
+// ARQUIVO: LoginScreen.js (CORRIGIDO)
+// CAMINHO: src/app/chat/components/LoginScreen.js
+// ============================================
 
 import './LoginScreen.css';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-export default function LoginScreen({ username, setUsername, onLogin }) {
+export default function LoginScreen({ onLogin }) {
   const logoRef = useRef(null);
+  const [username, setUsername] = useState('');
 
   useEffect(() => {
     const logo = logoRef.current;
@@ -25,6 +29,39 @@ export default function LoginScreen({ username, setUsername, onLogin }) {
       clearInterval(glowInterval);
     };
   }, []);
+
+  // ✅ FUNÇÃO CORRIGIDA - Extrai o nome e passa STRING para onLogin
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    console.log('🔑 LoginScreen - handleSubmit chamado');
+    console.log('🔑 Username atual:', username);
+    console.log('🔑 Tipo do username:', typeof username);
+    
+    const cleanName = username.trim();
+    
+    // Validação local
+    if (!cleanName) {
+      alert('Por favor, digite um nome válido.');
+      return;
+    }
+    
+    if (cleanName.length < 3) {
+      alert('Nome deve ter no mínimo 3 caracteres.');
+      return;
+    }
+    
+    if (cleanName.length > 20) {
+      alert('Nome deve ter no máximo 20 caracteres.');
+      return;
+    }
+    
+    console.log('✅ Nome validado:', cleanName);
+    console.log('✅ Chamando onLogin com:', cleanName, typeof cleanName);
+    
+    // ✅ PASSA A STRING DO NOME, NÃO O EVENTO!
+    onLogin(cleanName);
+  };
 
   return (
     <section className="login">
@@ -59,8 +96,8 @@ export default function LoginScreen({ username, setUsername, onLogin }) {
           Descubra o poder do anonimato... Envie mensagens secretas, confesse seus sentimentos ocultos e revele aquilo que só as sombras da noite conhecem 🎭✨
         </p>
 
-        {/* Formulário */}
-        <form className="login__form" onSubmit={onLogin}>
+        {/* ✅ Formulário CORRIGIDO */}
+        <form className="login__form" onSubmit={handleSubmit}>
           <div className="login__input-group">
             <label htmlFor="username" className="login__label">
               Seu nome
@@ -74,6 +111,8 @@ export default function LoginScreen({ username, setUsername, onLogin }) {
               onChange={(e) => setUsername(e.target.value)}
               required
               autoFocus
+              minLength={3}
+              maxLength={20}
             />
           </div>
 
