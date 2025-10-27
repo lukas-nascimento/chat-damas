@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start",
+    "start": "node server.js & npx next start",
     "lint": "eslint",
     "server": "node server.js",
     "dev:all": "concurrently \"yarn server\" \"yarn dev\""
@@ -22,11 +22,11 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
+    "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.2",
     "eslint": "^9",
     "eslint-config-next": "15.5.6",
-    "lightningcss": "^1.28.3",
-    "tailwindcss": "^4"
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17"
   }
 }
