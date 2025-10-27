@@ -11,6 +11,11 @@ html {
   width: 100%;
   height: 100%;
   overflow-x: hidden;
+  
+  /* 🚀 PREVINE PULL-TO-REFRESH E BOUNCE SCROLL */
+  overscroll-behavior: none;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 body {
@@ -24,6 +29,16 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  
+  /* 🚀 CRÍTICO: PREVINE PULL-TO-REFRESH NO MOBILE */
+  overscroll-behavior: none;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y pan-x;
+  position: fixed; /* Bloqueia scroll da página principal */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 /* ===== REMOVER BADGE DO NEXT.JS (O "N") ===== */
@@ -42,6 +57,11 @@ nextjs-portal,
 #__next {
   width: 100%;
   height: 100%;
+  overflow: hidden; /* Previne scroll no container principal */
+  
+  /* 🚀 PREVINE GESTOS INDESEJADOS */
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 /* Esconder possíveis elementos flutuantes indesejados */
@@ -79,4 +99,56 @@ body::-webkit-scrollbar-x {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+/* ============================================
+   🚀 OTIMIZAÇÕES ADICIONAIS PARA MOBILE
+   ============================================ */
+
+/* Previne seleção de texto acidental em elementos de UI */
+button, 
+.chat__button, 
+.chat__media-button,
+.login__button {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Permite seleção de texto apenas em mensagens e inputs */
+.chat__input,
+.login__input,
+.message--self,
+.message--other {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Previne zoom acidental ao dar duplo toque */
+@media (max-width: 768px) {
+  * {
+    touch-action: manipulation;
+  }
+  
+  /* Exceção: permite scroll nas áreas específicas */
+  .chat__messages {
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+  }
+  
+  input, textarea {
+    touch-action: manipulation;
+  }
+}
+
+/* Correção específica para iOS Safari */
+@supports (-webkit-touch-callout: none) {
+  body {
+    height: -webkit-fill-available;
+  }
+  
+  #__next {
+    height: -webkit-fill-available;
+  }
 }

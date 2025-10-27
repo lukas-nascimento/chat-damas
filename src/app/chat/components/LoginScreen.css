@@ -12,6 +12,10 @@
   padding: 2rem;
   position: relative;
   overflow: hidden;
+  
+  /* 🚀 PREVINE PULL-TO-REFRESH */
+  touch-action: none;
+  overscroll-behavior: none;
 }
 
 /* 🚀 OTIMIZAÇÃO: Ícones flutuantes simplificados para mobile */

@@ -589,7 +589,27 @@
   }
 }
 
-body {
-  overscroll-behavior: none;
+/* ============================================
+   🚀 PREVINE PULL-TO-REFRESH E GESTOS INDESEJADOS
+   ============================================ */
+html, body {
+  overscroll-behavior: none; /* Previne bounce scroll */
+  overscroll-behavior-y: contain; /* Bloqueia pull-to-refresh */
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y; /* Permite scroll vertical, mas bloqueia gestos */
+  position: fixed; /* CRÍTICO: Previne scroll da página */
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Garante que apenas a área de mensagens faça scroll */
+.chat {
+  touch-action: none; /* Bloqueia todos os gestos nativos do navegador */
+  overscroll-behavior: none;
+}
+
+.chat__messages {
+  touch-action: pan-y; /* Permite apenas scroll vertical */
+  overscroll-behavior: contain; /* Previne bounce nas mensagens */
 }
