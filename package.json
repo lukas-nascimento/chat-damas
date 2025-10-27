@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "node server.js & npx next start",
+    "start": "node server.js",
     "lint": "eslint",
     "server": "node server.js",
     "dev:all": "concurrently \"yarn server\" \"yarn dev\""
