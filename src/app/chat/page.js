@@ -1,5 +1,5 @@
 // ============================================
-// ARQUIVO: page.js (COM SISTEMA DE SEGURANÇA)
+// ARQUIVO: page.js (COM URL DO BACKEND)
 // CAMINHO: src/app/chat/page.js
 // ============================================
 
@@ -22,7 +22,8 @@ export default function ChatPage() {
   const isConnectingRef = useRef(false);
   const MAX_RECONNECT_ATTEMPTS = 5;
 
-  const WS_URL = 'wss://chat-damas.onrender.com';
+  // ✅ URL DO BACKEND (WEBSOCKET)
+  const WS_URL = 'wss://chat-damas-backend.onrender.com';
 
   const getColorForUser = (userId) => {
     const colors = ['crimson', 'gold', 'cadetblue', 'coral', 'teal', 'purple', 'deeppink', 'lime', 'orange', 'cyan'];
