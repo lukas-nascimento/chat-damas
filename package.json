@@ -5,10 +5,11 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "node server.js",
+    "start": "next start",
+    "start:backend": "node server.js",
     "lint": "eslint",
     "server": "node server.js",
-    "dev:all": "concurrently \"yarn server\" \"yarn dev\""
+    "dev:all": "concurrently \"npm run server\" \"npm run dev\""
   },
   "dependencies": {
     "emoji-picker-react": "^4.14.2",
