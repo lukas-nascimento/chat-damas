@@ -1,32 +1,45 @@
 // ============================================
-// ARQUIVO: server.js (COM SEGURANÇA COMPLETA + VÍDEOS)
+// ARQUIVO: server.js (OTIMIZADO PARA BAIXO USO DE MEMÓRIA)
 // CAMINHO: server.js (raiz do projeto)
 // ============================================
 
 const WebSocket = require('ws');
 
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 
 const wss = new WebSocket.Server({ 
   port: PORT,
-  maxPayload: 700 * 1024 * 1024, // 700MB
-  perMessageDeflate: false
+  maxPayload: 10 * 1024 * 1024, // REDUZIDO para 10MB (suficiente para imagens)
+  perMessageDeflate: {
+    zlibDeflateOptions: {
+      chunkSize: 1024,
+      memLevel: 7,
+      level: 3
+    },
+    zlibInflateOptions: {
+      chunkSize: 10 * 1024
+    },
+    threshold: 1024
+  }
 });
 
 const users = new Map();
-const bannedUsers = new Map(); // userId -> { reason, timestamp }
-const userViolations = new Map(); // userId -> [violations]
+const bannedUsers = new Map();
+const userViolations = new Map();
 let userIdCounter = 1;
 
+// Limites para economizar memória
+const MAX_BANNED_USERS = 100;
+const MAX_VIOLATIONS_PER_USER = 5;
+const MAX_MESSAGE_LENGTH = 1000;
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutos
+
 // ==========================================
-// SISTEMA DE SEGURANÇA ATUALIZADO
+// SISTEMA DE SEGURANÇA
 // ==========================================
 
-// Lista COMPLETA de palavras proibidas (sincronizada com o cliente)
 const bannedWords = [
   'fake',
-  
-  // Variações de "não usa foto real"
   'não usa foto real',
   'nao usa foto real',
   'não usa foto dele',
@@ -43,8 +56,6 @@ const bannedWords = [
   'nao usa suas fotos',
   'não usa foto própria',
   'nao usa foto propria',
-  
-  // Variações de "essa pessoa não é real"
   'essa pessoa não é real',
   'essa pessoa nao e real',
   'essa pessoa é fake',
@@ -62,8 +73,6 @@ const bannedWords = [
   'e fake',
   'isso é fake',
   'isso e fake',
-  
-  // Variações de "usa fotos de outra pessoa"
   'ele usa fotos de outra pessoa',
   'ele usa foto de outra pessoa',
   'ela usa fotos de outra pessoa',
@@ -100,8 +109,6 @@ const bannedWords = [
   'fotos nao sao dele',
   'fotos não são dela',
   'fotos nao sao dela',
-  
-  // Variações com gírias/abreviações
   'usa ft de outro',
   'usa ft de outra',
   'ft fake',
@@ -118,8 +125,6 @@ const bannedWords = [
   'enganador',
   'enganadora',
   'catfish',
-  
-  // Outras palavras proibidas
   'pedofilia',
   'pedofilo',
   'pedófilo',
@@ -142,84 +147,65 @@ const bannedWords = [
   'suicídio'
 ];
 
-// Regex para detectar URLs
 const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9-]+\.(com|net|org|br|io|gov|edu|co|tv|me|app|dev)[^\s]*)/gi;
 
-// Função para verificar links
 function containsLink(message) {
   return urlRegex.test(message);
 }
 
-// Função ATUALIZADA para verificar palavras proibidas (mesma lógica do cliente)
 function containsBannedWord(message) {
   const lowerMessage = message.toLowerCase();
   return bannedWords.some(word => {
-    // Para frases (com espaços), usa includes
     if (word.includes(' ')) {
       return lowerMessage.includes(word.toLowerCase());
     } else {
-      // Para palavras únicas, usa word boundary
       const regex = new RegExp(`\\b${word}\\b`, 'i');
       return regex.test(lowerMessage);
     }
   });
 }
 
-// Função ATUALIZADA para encontrar a palavra proibida
 function findBannedWord(message) {
   const lowerMessage = message.toLowerCase();
   return bannedWords.find(word => {
-    // Para frases (com espaços), usa includes
     if (word.includes(' ')) {
       return lowerMessage.includes(word.toLowerCase());
     } else {
-      // Para palavras únicas, usa word boundary
       const regex = new RegExp(`\\b${word}\\b`, 'i');
       return regex.test(lowerMessage);
     }
   });
 }
 
-// Função para banir usuário
 function banUser(ws, userId, userName, reason) {
+  // Limita número de usuários banidos para economizar memória
+  if (bannedUsers.size >= MAX_BANNED_USERS) {
+    const oldestKey = bannedUsers.keys().next().value;
+    bannedUsers.delete(oldestKey);
+  }
+
   bannedUsers.set(userId, {
     reason,
-    timestamp: new Date().toISOString(),
+    timestamp: Date.now(),
     userName
   });
 
-  console.log(`🚫 USUÁRIO BANIDO: ${userName} (ID: ${userId}) - ${reason}`);
+  console.log(`🚫 BANIDO: ${userName} (ID: ${userId}) - ${reason}`);
 
-  // Notifica o usuário banido
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: 'user_banned',
-      data: {
-        reason,
-        timestamp: new Date().toISOString()
-      }
+      data: { reason, timestamp: Date.now() }
     }));
   }
 
-  // Notifica todos os outros usuários
-  broadcastEvent('user_banned_notification', {
-    userId,
-    userName,
-    reason
-  });
-
-  // Remove o usuário
+  broadcastEvent('user_banned_notification', { userId, userName, reason });
   users.delete(ws);
-  
-  // Desconecta o usuário
   ws.close(1008, `Banido: ${reason}`);
-  
   updateOnlineCount();
 }
 
-// Validar mensagem antes de enviar
 function validateMessage(message, ws, user) {
-  // Verifica se usuário está banido
   if (bannedUsers.has(user.id)) {
     const banInfo = bannedUsers.get(user.id);
     ws.send(JSON.stringify({
@@ -230,42 +216,56 @@ function validateMessage(message, ws, user) {
     return false;
   }
 
-  // Verifica links
+  // Limita tamanho da mensagem
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    ws.send(JSON.stringify({
+      type: 'message_blocked',
+      data: { reason: 'Mensagem muito longa' }
+    }));
+    return false;
+  }
+
   if (containsLink(message)) {
-    console.log(`⚠️ LINK DETECTADO de ${user.name}: ${message.substring(0, 50)}...`);
+    console.log(`⚠️ LINK DETECTADO de ${user.name}`);
     
-    // Registra violação
     if (!userViolations.has(user.id)) {
       userViolations.set(user.id, []);
     }
-    userViolations.get(user.id).push({
+    const violations = userViolations.get(user.id);
+    
+    // Limita violações armazenadas por usuário
+    if (violations.length >= MAX_VIOLATIONS_PER_USER) {
+      violations.shift();
+    }
+    
+    violations.push({
       type: 'LINK',
-      message,
-      timestamp: new Date()
+      timestamp: Date.now()
     });
 
-    // Bane o usuário
     banUser(ws, user.id, user.name, 'Envio de links não autorizado');
     return false;
   }
 
-  // Verifica palavras proibidas
   const bannedWord = findBannedWord(message);
   if (bannedWord) {
     console.log(`⚠️ PALAVRA PROIBIDA de ${user.name}: "${bannedWord}"`);
     
-    // Registra violação
     if (!userViolations.has(user.id)) {
       userViolations.set(user.id, []);
     }
-    userViolations.get(user.id).push({
+    const violations = userViolations.get(user.id);
+    
+    if (violations.length >= MAX_VIOLATIONS_PER_USER) {
+      violations.shift();
+    }
+    
+    violations.push({
       type: 'BANNED_WORD',
       word: bannedWord,
-      message,
-      timestamp: new Date()
+      timestamp: Date.now()
     });
 
-    // Bane o usuário
     banUser(ws, user.id, user.name, `Uso de conteúdo inadequado: "${bannedWord}"`);
     return false;
   }
@@ -274,23 +274,29 @@ function validateMessage(message, ws, user) {
 }
 
 // ==========================================
-// FIM DO SISTEMA DE SEGURANÇA
+// SERVIDOR
 // ==========================================
 
 console.log(`🚀 Servidor WebSocket rodando em ws://localhost:${PORT}`);
 console.log(`📊 Max Payload: ${wss.options.maxPayload / 1024 / 1024}MB`);
-console.log(`🛡️ Sistema de segurança ativado com ${bannedWords.length} palavras/frases proibidas!`);
+console.log(`🛡️ Sistema de segurança ativado!`);
+console.log(`💾 Modo economia de memória ativado`);
 
 function broadcastEvent(type, data) {
   const message = JSON.stringify({ type, data });
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
+      try {
+        client.send(message);
+      } catch (err) {
+        console.error('Erro ao enviar:', err.message);
+      }
     }
   });
 }
 
 function updateOnlineCount() {
+  // Limpa conexões mortas
   for (const [ws, user] of users.entries()) {
     if (ws.readyState !== WebSocket.OPEN) {
       users.delete(ws);
@@ -302,11 +308,43 @@ function updateOnlineCount() {
     name: u.name
   }));
 
-  console.log(`📊 Usuários online: ${usersList.length}`);
   broadcastEvent('online_count', {
     count: usersList.length,
     users: usersList
   });
+}
+
+// Limpeza periódica de memória
+function cleanup() {
+  console.log('🧹 Executando limpeza de memória...');
+  
+  // Remove violações antigas (mais de 1 hora)
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
+  for (const [userId, violations] of userViolations.entries()) {
+    const recentViolations = violations.filter(v => v.timestamp > oneHourAgo);
+    if (recentViolations.length === 0) {
+      userViolations.delete(userId);
+    } else {
+      userViolations.set(userId, recentViolations);
+    }
+  }
+
+  // Remove bans antigos (mais de 24 horas)
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  for (const [userId, banInfo] of bannedUsers.entries()) {
+    if (banInfo.timestamp < oneDayAgo) {
+      bannedUsers.delete(userId);
+    }
+  }
+
+  // Força coleta de lixo se disponível
+  if (global.gc) {
+    global.gc();
+    console.log('♻️ Garbage collection executado');
+  }
+
+  const used = process.memoryUsage();
+  console.log(`💾 Memória após limpeza: ${Math.round(used.heapUsed / 1024 / 1024)}MB`);
 }
 
 wss.on('connection', (ws) => {
@@ -314,7 +352,6 @@ wss.on('connection', (ws) => {
   const userName = `Usuário ${userId}`;
   ws.isAlive = true;
 
-  // Verifica se o ID foi banido anteriormente
   if (bannedUsers.has(userId)) {
     const banInfo = bannedUsers.get(userId);
     ws.send(JSON.stringify({
@@ -326,7 +363,6 @@ wss.on('connection', (ws) => {
   }
 
   users.set(ws, { id: userId, name: userName });
-  console.log(`👤 Novo usuário conectado: ${userName}`);
 
   ws.send(JSON.stringify({
     type: 'user_id',
@@ -344,139 +380,77 @@ wss.on('connection', (ws) => {
       
       if (!user) return;
 
-      // Handler para DEFINIR NOME
       if (message.type === 'set_name') {
-        const old = user.name;
         user.name = message.data || user.name;
         users.set(ws, user);
-        console.log(`📝 ${old} agora é ${user.name}`);
         updateOnlineCount();
       }
 
-      // Handler para MENSAGEM DE TEXTO (COM VALIDAÇÃO)
       else if (message.type === 'message') {
-        console.log(`💬 ${user.name}: ${message.data}`);
-
-        // VALIDA A MENSAGEM
-        if (!validateMessage(message.data, ws, user)) {
-          return; // Mensagem bloqueada
-        }
+        if (!validateMessage(message.data, ws, user)) return;
 
         broadcastEvent('message', {
           userId: user.id,
           userName: user.name,
           content: message.data,
-          timestamp: new Date().toISOString()
+          timestamp: Date.now()
         });
       }
 
-      // Handler para MENSAGEM DE ÁUDIO
       else if (message.type === 'audio_message') {
-        console.log(`🎤 ${user.name} enviou um áudio (${Math.round(message.data.audio.length / 1024)}KB)`);
-
         broadcastEvent('audio_message', {
           userId: user.id,
           userName: user.name,
           content: message.data.audio,
-          timestamp: new Date().toISOString()
+          timestamp: Date.now()
         });
       }
 
-      // Handler para MENSAGEM DE IMAGEM
       else if (message.type === 'image_message') {
-        const imageSizeKB = Math.round(message.data.image.length / 1024);
-        console.log(`🖼️ ${user.name} enviou uma imagem (${imageSizeKB}KB) - ${message.data.fileName}`);
-
         broadcastEvent('image_message', {
           userId: user.id,
           userName: user.name,
           content: message.data.image,
           fileName: message.data.fileName || 'imagem.png',
-          timestamp: new Date().toISOString()
+          timestamp: Date.now()
         });
       }
 
-      // Handler para MENSAGEM DE VÍDEO
       else if (message.type === 'video_message') {
-        const videoSizeMB = (message.data.video.length / 1024 / 1024).toFixed(2);
-        console.log(`📹 ${user.name} enviou um vídeo (${videoSizeMB}MB base64) - ${message.data.fileName}`);
-
-        broadcastEvent('video_message', {
-          userId: user.id,
-          userName: user.name,
-          content: message.data.video,
-          fileName: message.data.fileName || 'video.mp4',
-          fileSize: message.data.fileSize,
-          timestamp: new Date().toISOString()
-        });
-
-        console.log(`✅ Vídeo distribuído para ${wss.clients.size} clientes`);
+        // VÍDEOS DESABILITADOS para economizar memória
+        ws.send(JSON.stringify({
+          type: 'message_blocked',
+          data: { reason: 'Vídeos temporariamente desabilitados para economia de memória' }
+        }));
       }
 
-      // Handler para MENSAGEM DE STICKER
       else if (message.type === 'sticker_message') {
-        console.log(`🎨 ${user.name} enviou um sticker: ${message.data.sticker}`);
-
         broadcastEvent('sticker_message', {
           userId: user.id,
           userName: user.name,
           content: message.data.sticker,
-          timestamp: new Date().toISOString()
+          timestamp: Date.now()
         });
       }
 
-      // Handler para DIGITAÇÃO (typing)
       else if (message.type === 'typing_start' || message.type === 'typing_stop') {
-        const isTyping = message.type === 'typing_start';
-
         broadcastEvent('user_typing', {
           userId: user.id,
           userName: user.name,
-          isTyping
+          isTyping: message.type === 'typing_start'
         });
       }
 
-      // Handler para VERIFICAR STATUS DE BAN
-      else if (message.type === 'check_banned') {
-        const isBanned = bannedUsers.has(user.id);
-        ws.send(JSON.stringify({
-          type: 'banned_status',
-          data: {
-            isBanned,
-            banInfo: isBanned ? bannedUsers.get(user.id) : null
-          }
-        }));
-      }
-
-      // Handler para LISTAR USUÁRIOS BANIDOS (admin)
-      else if (message.type === 'get_banned_users') {
-        const bannedList = Array.from(bannedUsers.entries()).map(([userId, info]) => ({
-          userId,
-          ...info
-        }));
-        ws.send(JSON.stringify({
-          type: 'banned_users_list',
-          data: bannedList
-        }));
-      }
-
     } catch (err) {
-      console.error('❌ Erro ao processar mensagem:', err.message);
+      console.error('❌ Erro:', err.message);
     }
   });
 
   ws.on('close', () => {
     const user = users.get(ws);
     if (user) {
-      console.log(`👋 ${user.name} saiu`);
       users.delete(ws);
       updateOnlineCount();
-
-      broadcastEvent('user_typing', {
-        userId: user.id,
-        userName: user.name,
-        isTyping: false
-      });
     }
   });
 
@@ -493,15 +467,22 @@ setInterval(() => {
     ws.isAlive = false;
     ws.ping();
   });
-  updateOnlineCount();
-}, 10000);
+}, 30000); // 30 segundos
+
+// Limpeza de memória
+setInterval(cleanup, CLEANUP_INTERVAL);
 
 // Monitor de memória
 setInterval(() => {
   const used = process.memoryUsage();
-  console.log(`💾 Memória: ${Math.round(used.heapUsed / 1024 / 1024)}MB`);
-  console.log(`🚫 Usuários banidos: ${bannedUsers.size}`);
-  console.log(`📋 Total de violações registradas: ${userViolations.size}`);
+  const memMB = Math.round(used.heapUsed / 1024 / 1024);
+  console.log(`💾 Memória: ${memMB}MB | Usuários: ${users.size} | Banidos: ${bannedUsers.size}`);
+  
+  // Alerta se memória alta
+  if (memMB > 400) {
+    console.log('⚠️ ALERTA: Memória alta! Executando limpeza...');
+    cleanup();
+  }
 }, 60000);
 
 // Encerramento gracioso
